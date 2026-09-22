@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  PLAYER
+  MODERATOR
+  ADMIN
+}
+
+enum TransactionType {
+  SALARY
+  BUSINESS_PURCHASE
+  BUSINESS_INCOME
+  STOCK_BUY
+  STOCK_SELL
+  BONUS
+  BANK_INTEREST
+  ADMIN_ADJUSTMENT
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  level        Int      @default(1)
+  experience   Int      @default(0)
+  role         UserRole @default(PLAYER)
+  wallet       Wallet?
+  jobs         UserJob[]
+  businesses   UserBusiness[]
+  holdings     StockHolding[]
+  transactions Transaction[]
+  notifications Notification[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Wallet {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  cash        Decimal  @default(1200)
+  bankBalance Decimal  @default(500)
+  dirtyMoney  Decimal  @default(0)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt   DateTime @updatedAt
+}
+
+model Job {
+  id            String    @id @default(cuid())
+  name          String
+  requiredLevel Int
+  salary        Decimal
+  xpReward      Int
+  userJobs      UserJob[]
+}
+
+model UserJob {
+  id        String   @id @default(cuid())
+  userId    String
+  jobId     String
+  assignedAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, jobId])
+}
+
+model Business {
+  id                String         @id @default(cuid())
+  name              String
+  description       String
+  basePrice         Decimal
+  baseIncome        Decimal
+  upgradeMultiplier Float          @default(1.2)
+  userBusinesses    UserBusiness[]
+}
+
+model UserBusiness {
+  id           String   @id @default(cuid())
+  userId       String
+  businessId   String
+  quantity     Int      @default(0)
+  level        Int      @default(1)
+  lastIncomeAt DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, businessId])
+}
+
+model Stock {
+  id         String        @id @default(cuid())
+  symbol     String        @unique
+  name       String
+  price      Decimal
+  volatility Float         @default(0.05)
+  holdings   StockHolding[]
+  updatedAt  DateTime      @updatedAt
+}
+
+model StockHolding {
+  id           String  @id @default(cuid())
+  userId       String
+  stockId      String
+  quantity     Int     @default(0)
+  averagePrice Decimal
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stock        Stock   @relation(fields: [stockId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, stockId])
+}
+
+model Transaction {
+  id            String          @id @default(cuid())
+  userId        String
+  type          TransactionType
+  amount        Decimal
+  balanceBefore Decimal
+  balanceAfter  Decimal
+  reference     String?
+  createdAt     DateTime        @default(now())
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
