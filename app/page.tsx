@@ -1,8 +1,5 @@
-import "./globals.css";
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = { title: "رأس المال" };
-
-export default function RootLayout({ children }: { children: React.ReactNode }) {
-  return <html lang="ar" dir="rtl"><body>{children}</body></html>;
+export default function HomePage() {
+  redirect("/dashboard");
 }

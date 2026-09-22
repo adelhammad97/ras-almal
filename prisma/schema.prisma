@@ -7,134 +7,43 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum UserRole {
-  PLAYER
-  MODERATOR
-  ADMIN
-}
-
-enum TransactionType {
-  SALARY
-  BUSINESS_PURCHASE
-  BUSINESS_INCOME
-  STOCK_BUY
-  STOCK_SELL
-  BONUS
-  BANK_INTEREST
-  ADMIN_ADJUSTMENT
-}
+enum UserRole { PLAYER MODERATOR ADMIN }
+enum TransactionType { SALARY BUSINESS_PURCHASE BUSINESS_INCOME STOCK_BUY STOCK_SELL BONUS BANK_INTEREST ADMIN_ADJUSTMENT }
+enum ReportStatus { OPEN REVIEWING RESOLVED DISMISSED }
 
 model User {
-  id           String   @id @default(cuid())
-  username     String   @unique
-  email        String   @unique
+  id String @id @default(cuid())
+  username String @unique
+  email String @unique
   passwordHash String
-  level        Int      @default(1)
-  experience   Int      @default(0)
-  role         UserRole @default(PLAYER)
-  wallet       Wallet?
-  jobs         UserJob[]
-  businesses   UserBusiness[]
-  holdings     StockHolding[]
+  level Int @default(1)
+  experience Int @default(0)
+  role UserRole @default(PLAYER)
+  isBanned Boolean @default(false)
+  lastSeenAt DateTime?
+  wallet Wallet?
+  jobs UserJob[]
+  businesses UserBusiness[]
+  holdings StockHolding[]
   transactions Transaction[]
   notifications Notification[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-}
-
-model Wallet {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  cash        Decimal  @default(1200)
-  bankBalance Decimal  @default(500)
-  dirtyMoney  Decimal  @default(0)
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  updatedAt   DateTime @updatedAt
-}
-
-model Job {
-  id            String    @id @default(cuid())
-  name          String
-  requiredLevel Int
-  salary        Decimal
-  xpReward      Int
-  userJobs      UserJob[]
-}
-
-model UserJob {
-  id        String   @id @default(cuid())
-  userId    String
-  jobId     String
-  assignedAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, jobId])
-}
-
-model Business {
-  id                String         @id @default(cuid())
-  name              String
-  description       String
-  basePrice         Decimal
-  baseIncome        Decimal
-  upgradeMultiplier Float          @default(1.2)
-  userBusinesses    UserBusiness[]
-}
-
-model UserBusiness {
-  id           String   @id @default(cuid())
-  userId       String
-  businessId   String
-  quantity     Int      @default(0)
-  level        Int      @default(1)
-  lastIncomeAt DateTime @default(now())
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  business     Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, businessId])
-}
-
-model Stock {
-  id         String        @id @default(cuid())
-  symbol     String        @unique
-  name       String
-  price      Decimal
-  volatility Float         @default(0.05)
-  holdings   StockHolding[]
-  updatedAt  DateTime      @updatedAt
-}
-
-model StockHolding {
-  id           String  @id @default(cuid())
-  userId       String
-  stockId      String
-  quantity     Int     @default(0)
-  averagePrice Decimal
-  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  stock        Stock   @relation(fields: [stockId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, stockId])
-}
-
-model Transaction {
-  id            String          @id @default(cuid())
-  userId        String
-  type          TransactionType
-  amount        Decimal
-  balanceBefore Decimal
-  balanceAfter  Decimal
-  reference     String?
-  createdAt     DateTime        @default(now())
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model Notification {
-  id        String   @id @default(cuid())
-  userId    String
-  title     String
-  message   String
-  isRead    Boolean  @default(false)
+  reports Report[] @relation("Reporter")
+  createdReports Report[] @relation("ReportedUser")
+  auditLogs AuditLog[]
+  featureSettings FeatureSetting[]
   createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  updatedAt DateTime @updatedAt
 }
+model Wallet { id String @id @default(cuid()); userId String @unique; cash Decimal @default(1200); bankBalance Decimal @default(500); dirtyMoney Decimal @default(0); user User @relation(fields:[userId], references:[id], onDelete: Cascade); updatedAt DateTime @updatedAt }
+model Job { id String @id @default(cuid()); name String; requiredLevel Int; salary Decimal; xpReward Int; userJobs UserJob[] }
+model UserJob { id String @id @default(cuid()); userId String; jobId String; assignedAt DateTime @default(now()); user User @relation(fields:[userId], references:[id], onDelete: Cascade); job Job @relation(fields:[jobId], references:[id], onDelete: Cascade); @@unique([userId, jobId]) }
+model Business { id String @id @default(cuid()); name String; description String; basePrice Decimal; baseIncome Decimal; upgradeMultiplier Float @default(1.2); userBusinesses UserBusiness[] }
+model UserBusiness { id String @id @default(cuid()); userId String; businessId String; quantity Int @default(0); level Int @default(1); lastIncomeAt DateTime @default(now()); user User @relation(fields:[userId], references:[id], onDelete: Cascade); business Business @relation(fields:[businessId], references:[id], onDelete: Cascade); @@unique([userId, businessId]) }
+model Stock { id String @id @default(cuid()); symbol String @unique; name String; price Decimal; volatility Float @default(0.05); holdings StockHolding[]; updatedAt DateTime @updatedAt }
+model StockHolding { id String @id @default(cuid()); userId String; stockId String; quantity Int @default(0); averagePrice Decimal; user User @relation(fields:[userId], references:[id], onDelete: Cascade); stock Stock @relation(fields:[stockId], references:[id], onDelete: Cascade); @@unique([userId, stockId]) }
+model Transaction { id String @id @default(cuid()); userId String; type TransactionType; amount Decimal; balanceBefore Decimal; balanceAfter Decimal; reference String?; createdAt DateTime @default(now()); user User @relation(fields:[userId], references:[id], onDelete: Cascade); @@index([userId, createdAt]) }
+model Notification { id String @id @default(cuid()); userId String; title String; message String; isRead Boolean @default(false); createdAt DateTime @default(now()); user User @relation(fields:[userId], references:[id], onDelete: Cascade) }
+model FeatureSetting { id String @id @default(cuid()); featureId String @unique; enabled Boolean @default(true); updatedAt DateTime @updatedAt; updatedById String?; updatedBy User? @relation(fields:[updatedById], references:[id], onDelete: SetNull) }
+model Announcement { id String @id @default(cuid()); title String; body String; active Boolean @default(true); createdAt DateTime @default(now()); expiresAt DateTime? }
+model Report { id String @id @default(cuid()); reporterId String; reportedUserId String?; reason String; status ReportStatus @default(OPEN); resolution String?; createdAt DateTime @default(now()); resolvedAt DateTime?; reporter User @relation("Reporter", fields:[reporterId], references:[id], onDelete: Cascade); reportedUser User? @relation("ReportedUser", fields:[reportedUserId], references:[id], onDelete: SetNull) }
+model AuditLog { id String @id @default(cuid()); actorId String?; action String; target String?; metadata String?; createdAt DateTime @default(now()); actor User? @relation(fields:[actorId], references:[id], onDelete: SetNull); @@index([createdAt]) }
