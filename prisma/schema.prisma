@@ -2,45 +2,49 @@ generator client {
   provider = "prisma-client-js"
 }
 
-datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
-}
+datasource db { provider = "sqlite"; url = env("DATABASE_URL") }
 
 enum UserRole { PLAYER MODERATOR ADMIN }
-enum TransactionType { SALARY BUSINESS_PURCHASE BUSINESS_INCOME STOCK_BUY STOCK_SELL BONUS BANK_INTEREST ADMIN_ADJUSTMENT }
+enum TransactionType { SALARY BUSINESS_PURCHASE BUSINESS_INCOME STOCK_BUY STOCK_SELL BONUS BANK_INTEREST TRANSFER TAX LOAN_REPAYMENT ADMIN_ADJUSTMENT }
 enum ReportStatus { OPEN REVIEWING RESOLVED DISMISSED }
+enum AccountType { CHECKING SAVINGS INVESTMENT CERTIFICATE }
+enum OrderSide { BUY SELL }
+enum OrderType { MARKET LIMIT }
+enum LoanStatus { ACTIVE PAID DEFAULTED }
+enum CompanyTransactionType { PURCHASE SALE PAYROLL EXPENSE TAX PRODUCTION }
+enum AuctionStatus { OPEN SOLD CANCELLED }
 
 model User {
-  id String @id @default(cuid())
-  username String @unique
-  email String @unique
-  passwordHash String
-  level Int @default(1)
-  experience Int @default(0)
-  role UserRole @default(PLAYER)
-  isBanned Boolean @default(false)
-  lastSeenAt DateTime?
-  wallet Wallet?
-  jobs UserJob[]
-  businesses UserBusiness[]
-  holdings StockHolding[]
-  transactions Transaction[]
-  notifications Notification[]
-  reports Report[] @relation("Reporter")
-  createdReports Report[] @relation("ReportedUser")
-  auditLogs AuditLog[]
-  featureSettings FeatureSetting[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id String @id @default(cuid()); username String @unique; email String? @unique; phone String? @unique; googleId String? @unique
+  passwordHash String?; avatarUrl String?; avatarFrame String?; bio String?; title String?; level Int @default(1); experience Int @default(0)
+  creditScore Int @default(600); role UserRole @default(PLAYER); isBanned Boolean @default(false); lastSeenAt DateTime?; createdAt DateTime @default(now()); updatedAt DateTime @updatedAt
+  wallet Wallet?; jobs UserJob[]; businesses UserBusiness[]; holdings StockHolding[]; transactions Transaction[]; notifications Notification[]
+  reports Report[] @relation("Reporter"); createdReports Report[] @relation("ReportedUser"); auditLogs AuditLog[]; featureSettings FeatureSetting[]; bankAccounts BankAccount[]
+  sentTransfers Transfer[] @relation("TransferSender"); receivedTransfers Transfer[] @relation("TransferReceiver"); loans Loan[]; companies Company[]; orders Order[]; bids AuctionBid[]
 }
 model Wallet { id String @id @default(cuid()); userId String @unique; cash Decimal @default(1200); bankBalance Decimal @default(500); dirtyMoney Decimal @default(0); user User @relation(fields:[userId], references:[id], onDelete: Cascade); updatedAt DateTime @updatedAt }
+model BankAccount { id String @id @default(cuid()); userId String; name String; type AccountType; balance Decimal @default(0); interestRate Float @default(0.01); withdrawalLimit Decimal @default(10000); monthlyFee Decimal @default(0); user User @relation(fields:[userId], references:[id], onDelete: Cascade); cards BankCard[]; certificates Certificate[]; createdAt DateTime @default(now()); @@index([userId, type]) }
+model BankCard { id String @id @default(cuid()); accountId String; lastFour String; label String; dailyLimit Decimal @default(1000); active Boolean @default(true); account BankAccount @relation(fields:[accountId], references:[id], onDelete: Cascade) }
+model Certificate { id String @id @default(cuid()); accountId String; principal Decimal; interestRate Float; maturityAt DateTime; account BankAccount @relation(fields:[accountId], references:[id], onDelete: Cascade) }
+model Transfer { id String @id @default(cuid()); senderId String; receiverId String; amount Decimal; fee Decimal @default(0); note String?; createdAt DateTime @default(now()); sender User @relation("TransferSender", fields:[senderId], references:[id], onDelete: Cascade); receiver User @relation("TransferReceiver", fields:[receiverId], references:[id], onDelete: Cascade); @@index([senderId, createdAt]); @@index([receiverId, createdAt]) }
+model Loan { id String @id @default(cuid()); userId String; principal Decimal; remaining Decimal; interestRate Float; installment Decimal; dueAt DateTime; status LoanStatus @default(ACTIVE); user User @relation(fields:[userId], references:[id], onDelete: Cascade) }
 model Job { id String @id @default(cuid()); name String; requiredLevel Int; salary Decimal; xpReward Int; userJobs UserJob[] }
 model UserJob { id String @id @default(cuid()); userId String; jobId String; assignedAt DateTime @default(now()); user User @relation(fields:[userId], references:[id], onDelete: Cascade); job Job @relation(fields:[jobId], references:[id], onDelete: Cascade); @@unique([userId, jobId]) }
 model Business { id String @id @default(cuid()); name String; description String; basePrice Decimal; baseIncome Decimal; upgradeMultiplier Float @default(1.2); userBusinesses UserBusiness[] }
 model UserBusiness { id String @id @default(cuid()); userId String; businessId String; quantity Int @default(0); level Int @default(1); lastIncomeAt DateTime @default(now()); user User @relation(fields:[userId], references:[id], onDelete: Cascade); business Business @relation(fields:[businessId], references:[id], onDelete: Cascade); @@unique([userId, businessId]) }
-model Stock { id String @id @default(cuid()); symbol String @unique; name String; price Decimal; volatility Float @default(0.05); holdings StockHolding[]; updatedAt DateTime @updatedAt }
+model Company { id String @id @default(cuid()); ownerId String; name String @unique; logoUrl String?; sector String; capital Decimal @default(0); budget Decimal @default(0); owner User @relation(fields:[ownerId], references:[id], onDelete: Cascade); employees CompanyEmployee[]; branches CompanyBranch[]; warehouses CompanyWarehouse[]; factories CompanyFactory[]; inventory CompanyInventory[]; transactions CompanyTransaction[]; shares Stock[]; createdAt DateTime @default(now()) }
+model CompanyEmployee { id String @id @default(cuid()); companyId String; name String; role String; salary Decimal; company Company @relation(fields:[companyId], references:[id], onDelete: Cascade) }
+model CompanyBranch { id String @id @default(cuid()); companyId String; name String; location String; operatingCost Decimal @default(0); company Company @relation(fields:[companyId], references:[id], onDelete: Cascade) }
+model CompanyWarehouse { id String @id @default(cuid()); companyId String; name String; capacity Int; used Int @default(0); company Company @relation(fields:[companyId], references:[id], onDelete: Cascade); inventory CompanyInventory[] }
+model CompanyFactory { id String @id @default(cuid()); companyId String; name String; product String; capacity Int; company Company @relation(fields:[companyId], references:[id], onDelete: Cascade) }
+model CompanyInventory { id String @id @default(cuid()); companyId String; warehouseId String?; item String; quantity Int @default(0); unitCost Decimal @default(0); company Company @relation(fields:[companyId], references:[id], onDelete: Cascade); warehouse CompanyWarehouse? @relation(fields:[warehouseId], references:[id], onDelete: SetNull) }
+model CompanyTransaction { id String @id @default(cuid()); companyId String; type CompanyTransactionType; amount Decimal; note String?; createdAt DateTime @default(now()); company Company @relation(fields:[companyId], references:[id], onDelete: Cascade) }
+model Stock { id String @id @default(cuid()); symbol String @unique; name String; price Decimal; volatility Float @default(0.05); companyId String?; holdings StockHolding[]; orders Order[]; company Company? @relation(fields:[companyId], references:[id], onDelete: SetNull); updatedAt DateTime @updatedAt }
 model StockHolding { id String @id @default(cuid()); userId String; stockId String; quantity Int @default(0); averagePrice Decimal; user User @relation(fields:[userId], references:[id], onDelete: Cascade); stock Stock @relation(fields:[stockId], references:[id], onDelete: Cascade); @@unique([userId, stockId]) }
+model Order { id String @id @default(cuid()); userId String; stockId String; side OrderSide; type OrderType; quantity Int; limitPrice Decimal?; filled Int @default(0); status String @default("OPEN"); user User @relation(fields:[userId], references:[id], onDelete: Cascade); stock Stock @relation(fields:[stockId], references:[id], onDelete: Cascade); createdAt DateTime @default(now()); @@index([stockId, status]) }
+model EconomicNews { id String @id @default(cuid()); title String; body String; impact Float; publishedAt DateTime @default(now()); expiresAt DateTime? }
+model Auction { id String @id @default(cuid()); sellerId String; title String; description String; startingPrice Decimal; currentPrice Decimal; status AuctionStatus @default(OPEN); endsAt DateTime; seller User @relation(fields:[sellerId], references:[id], onDelete: Cascade); bids AuctionBid[] }
+model AuctionBid { id String @id @default(cuid()); auctionId String; bidderId String; amount Decimal; createdAt DateTime @default(now()); auction Auction @relation(fields:[auctionId], references:[id], onDelete: Cascade); bidder User @relation(fields:[bidderId], references:[id], onDelete: Cascade); @@unique([auctionId, bidderId]) }
 model Transaction { id String @id @default(cuid()); userId String; type TransactionType; amount Decimal; balanceBefore Decimal; balanceAfter Decimal; reference String?; createdAt DateTime @default(now()); user User @relation(fields:[userId], references:[id], onDelete: Cascade); @@index([userId, createdAt]) }
 model Notification { id String @id @default(cuid()); userId String; title String; message String; isRead Boolean @default(false); createdAt DateTime @default(now()); user User @relation(fields:[userId], references:[id], onDelete: Cascade) }
 model FeatureSetting { id String @id @default(cuid()); featureId String @unique; enabled Boolean @default(true); updatedAt DateTime @updatedAt; updatedById String?; updatedBy User? @relation(fields:[updatedById], references:[id], onDelete: SetNull) }
